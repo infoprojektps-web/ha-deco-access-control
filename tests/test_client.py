@@ -74,9 +74,28 @@ class ClientTests(unittest.TestCase):
     def test_readonly_wifi_mode_probe(self):
         fake = FakeDeco()
         status = self.controller(fake).poll().wifi_access
-        self.assertEqual(status.status, "available")
+        self.assertEqual(status.status, "ok")
         self.assertEqual(status.mode, "block")
         self.assertEqual(fake.operations, [])
+
+    def test_unsupported_probes_do_not_disable_base_poll(self):
+        fake = FakeDeco()
+        result = self.controller(fake).poll()
+        self.assertEqual(result.nrd_blacklist.status, "request_error")
+        self.assertEqual(result.wifi_refused.status, "request_error")
+        self.assertEqual(len(result.clients), 2)
+
+    def test_api_error_is_reported_without_reserved_unavailable_state(self):
+        from client import read_wifi_access_probe
+        class ApiFailure:
+            def request(self, *args):
+                class FakeApiError(Exception):
+                    error_code = 1234
+                raise FakeApiError("secret token or MAC")
+        probe = read_wifi_access_probe(ApiFailure())
+        self.assertEqual(probe.status, "api_error")
+        self.assertEqual(probe.error_code, 1234)
+        self.assertNotIn("secret", str(probe))
 
     def test_blocklist_missing_field_aborts_without_writes(self):
         fake = FakeDeco()
