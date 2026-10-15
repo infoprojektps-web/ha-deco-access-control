@@ -48,3 +48,20 @@ Nie wyświetlamy haseł, sesji ani danych urządzeń, tylko kod błędu, nazwę 
 **Nie zmieniono funkcji blokowania!** Kontrola zapisu listy MAC nie oznacza skutecznej blokady Wi-Fi. Nie jest bezpieczne wywoływanie nieznanych zapisów `apply_list/set` na mieszanej sieci M4/X50 AP bez sprawdzenia szczegółów.
 
 Do dalszej analizy wyślij jedynie stan i atrybuty trzech sensorów, bez prywatnych MAC. Jeśli `error_code` jest niezerowe, można sprawdzić odpowiedź API, ale nie należy zgadywać parametrów zapisu.
+
+
+## Diagnostyka firmware Deco M4R 1.8.2 (beta.4)
+
+Dotyczy głównego Deco M4R 192.168.0.205, firmware 1.8.2 Build 20251027 Rel. 36869, w trybie AP. X50 nie jest jeszcze podłączony.
+
+Nowy, wyłącznie odczytowy atrybut `firmware_client_blocked` w istniejących przełącznikach pokazuje wartość pola `blocked` z odpowiedzi `admin/client → client_list`. To **inna informacja niż członkostwo w `black_list`**:
+
+- `true` — firmware zgłasza flagę blokady klienta;
+- `false` — firmware zgłasza jej brak;
+- `unknown` — pole nieobecne lub ma nierozpoznaną wartość;
+- `not_listed` — klient nie występuje na surowej liście klientów;
+- `read_error` — dodatkowy odczyt listy klientów się nie udał.
+
+Odczyt flagi nie potwierdza sam w sobie, że klient stracił internet. Aby ustalić różnicę, porównaj atrybuty `blocked`, `firmware_client_blocked` i `online` **tego samego przełącznika** w dwóch stanach: gdy blokada dodana przez HA jest nieskuteczna, oraz gdy ręczna blokada w aplikacji Deco skutecznie odcina internet. Nie udostępniaj MAC ani IP urządzenia testowego.
+
+Beta.4 nie wprowadza nowych operacji zapisu, nie rozłącza klientów ani nie zmienia ustawień samego Deco.
