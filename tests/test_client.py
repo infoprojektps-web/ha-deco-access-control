@@ -160,6 +160,22 @@ class ClientTests(unittest.TestCase):
         self.assertEqual(result.mobile_blacklist.count, 1)
         self.assertEqual(fake.operations, [])
 
+    def test_mobile_app_transport_status_sanitized(self):
+        fake = FakeDeco()
+        def request(path, form, data):
+            if path == "admin/mobile_app/client":
+                class SimulatedTransportError(Exception):
+                    status_code = 404
+                raise SimulatedTransportError("secret token 123")
+            return FakeDeco.request(fake, path, form, data)
+        fake.request = request
+        result = self.controller(fake).poll()
+        self.assertEqual(result.mobile_blacklist.status, "request_error")
+        self.assertEqual(result.mobile_blacklist.error_type, "SimulatedTransportError")
+        self.assertEqual(result.mobile_blacklist.http_status_code, 404)
+        self.assertNotIn("secret", str(result.mobile_blacklist))
+        self.assertEqual(fake.operations, [])
+
     def test_mobile_app_blacklist_failure_does_not_disable_base_poll(self):
         fake = FakeDeco(blocked={MAC_A})
         fake.mobile_read_failure = True
