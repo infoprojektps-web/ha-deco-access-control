@@ -20,3 +20,16 @@ Ustawienia → System → Dzienniki → filtr `deco_access_control`. Udostępnia
 
 ## Dodatkowe informacje
 Wymagany HA 2026.10+ i Python 3.14+. Wersja beta — żadnych testów na rzeczywistym M4/X50. Nie gwarantuje działania na wszystkich firmware. Stare hasło TP-Link było widoczne na zrzucie, więc je zmień.
+
+
+## Diagnostyka blokowania w wersji 0.1.0-beta.2
+
+Jeśli przełącznik wyłączy urządzenie, ale internet nadal działa, NIE oznacza to sukcesu. Podstawowa lista `admin/client → black_list` może różnić się od funkcji `Wi-Fi Access Control → apply_list`, używanej przez aplikację Deco. Do czasu identyfikacji różnicy integracja nadal zapisuje tylko na pierwszej liście.
+
+1. Po aktualizacji przez HACS i restarcie HA wyszukaj encję **Deco — diagnostyka kontroli Wi-Fi**.
+2. Otwórz jej szczegóły i zapisz: stan, `endpoint_status`, `active_mode`, `response_fields`, `configuration_signature` i `error_type` (jeśli wystąpił). Nie wysyłaj haseł, tokenów ani numerów MAC.
+3. Zrób jeden test blokowania HA na urządzeniu testowym. Zanotuj, czy wartość `configuration_signature` zmieniła się po odświeżeniu.
+4. Usuń ten wpis i dodaj to samo urządzenie ręcznie do skutecznej listy blokad w aplikacji Deco. Ponownie zapisz wartość `configuration_signature` po odświeżeniu i sprawdź internet.
+5. Podaj wyniki oraz dokładną nazwę ekranu Deco, na którym ręcznie blokujesz urządzenie.
+
+**Ważne:** Suma wpisów na `black_list` nie jest pomiarem faktycznej dostępności internetu. Ten diagnostyczny odczyt nie modyfikuje konfiguracji sieci. Nie jest to jeszcze naprawa samej blokady.
