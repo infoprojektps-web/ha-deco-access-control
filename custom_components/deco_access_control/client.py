@@ -56,6 +56,8 @@ class Snapshot:
     blacklist_entry_fields: dict[str, tuple[str, ...]] | None = None
     mobile_blacklist: WifiAccessProbe | None = None
     mobile_blacklist_macs: frozenset[str] | None = None
+    direct_blacklist: WifiAccessProbe | None = None
+    direct_blacklist_macs: frozenset[str] | None = None
 
 def _api_error_code(exc: Exception) -> int | None:
     """Expose only numeric Deco error_code, never raw exception text."""
@@ -103,6 +105,31 @@ def read_wifi_access_probe(api) -> WifiAccessProbe:
     if mode is None and isinstance(result.get("apply_list"), dict):
         mode = result["apply_list"].get("curr_mode")
     return replace(base, mode=str(mode) if mode is not None else None)
+
+
+def read_direct_blacklist(api) -> tuple[WifiAccessProbe, frozenset[str] | None]:
+    """Inspect the distinct /admin/black_list form (never write/replace list).
+
+    A Deco M4 community implementation uses this path for managing the
+    effective blocklist. The endpoint is not assumed to work on this firmware.
+    """
+    base, result = _read_only_probe(api, "admin/black_list", "black_list", "read")
+    if result is None:
+        return base, None
+    items = result.get("black_list")
+    if items == {} or items == []:
+        return replace(base, count=0), frozenset()
+    if not isinstance(items, list):
+        return replace(base, status="unexpected_response"), None
+    macs = set()
+    for entry in items:
+        if not isinstance(entry, dict):
+            return replace(base, status="unexpected_response"), None
+        try:
+            macs.add(normalize_mac(entry.get("mac")))
+        except DecoAccessError:
+            return replace(base, status="unexpected_response"), None
+    return replace(base, count=len(macs)), frozenset(macs)
 
 
 def read_mobile_blacklist(api) -> tuple[WifiAccessProbe, frozenset[str] | None]:
@@ -253,10 +280,13 @@ class DecoController:
         )
         if with_diagnostics:
             mobile_probe, mobile_macs = read_mobile_blacklist(api)
+            direct_probe, direct_macs = read_direct_blacklist(api)
             return replace(
                 base,
                 mobile_blacklist=mobile_probe,
                 mobile_blacklist_macs=mobile_macs,
+                direct_blacklist=direct_probe,
+                direct_blacklist_macs=direct_macs,
                 wifi_access=read_wifi_access_probe(api),
                 nrd_blacklist=read_nrd_blacklist_probe(api),
                 wifi_refused=read_wifi_refused_probe(api),
