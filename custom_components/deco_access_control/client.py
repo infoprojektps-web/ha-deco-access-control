@@ -51,6 +51,8 @@ class Snapshot:
     nrd_blacklist: WifiAccessProbe | None = None
     wifi_refused: WifiAccessProbe | None = None
     firmware_client_blocked: dict[str, str] | None = None
+    blacklist_entry_signatures: dict[str, str] | None = None
+    blacklist_entry_fields: dict[str, tuple[str, ...]] | None = None
 
 def _api_error_code(exc: Exception) -> int | None:
     """Expose only numeric Deco error_code, never raw exception text."""
@@ -192,6 +194,31 @@ class DecoController:
         if isinstance(raw_entries, list) and not all(isinstance(x, dict) for x in raw_entries):
             raise DecoAccessError("Malformed Deco blocklist entry; no change allowed")
         base = parse_snapshot(api.get_client_list(), api.clients.get_blocked())
+        # Observe exact *record shape* created by app vs Home Assistant.
+        # The digest intentionally excludes the MAC address and never
+        # exposes raw values, names or addresses in Home Assistant.
+        signatures: dict[str, str] = {}
+        fields: dict[str, tuple[str, ...]] = {}
+        if isinstance(raw_entries, list):
+            for raw in raw_entries:
+                try:
+                    mac = normalize_mac(raw.get("mac"))
+                except DecoAccessError:
+                    continue
+                if not all(isinstance(key, str) for key in raw):
+                    continue
+                canonical = {key: value for key, value in raw.items() if key != "mac"}
+                signature = hashlib.sha256(
+                    json.dumps(canonical, sort_keys=True, separators=(",", ":"), default=str)
+                    .encode("utf-8")
+                ).hexdigest()[:16]
+                signatures[mac] = signature
+                fields[mac] = tuple(sorted(canonical))
+        base = replace(
+            base,
+            blacklist_entry_signatures=signatures,
+            blacklist_entry_fields=fields,
+        )
         if with_diagnostics:
             return replace(
                 base,
