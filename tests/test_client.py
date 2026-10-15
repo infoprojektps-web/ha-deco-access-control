@@ -22,6 +22,8 @@ class FakeDeco:
         self.raw_record_extra = {}
         self.mobile_blocked = set()
         self.mobile_read_failure = False
+        self.direct_blocked = set()
+        self.direct_read_failure = False
         self.raw_firmware_flags = {MAC_A: True, MAC_B: False}
         self.fail_firmware_read = False
         self.ignore_write = False
@@ -32,6 +34,10 @@ class FakeDeco:
     def __exit__(self, *args):
         return False
     def request(self, path, form, data):
+        if path == "admin/black_list" and form == "black_list":
+            if self.direct_read_failure:
+                raise ConnectionError("endpoint unavailable")
+            return {"black_list": [{"mac": mac} for mac in sorted(self.direct_blocked)]}
         if path == "admin/mobile_app/client" and form == "black_list":
             if self.mobile_read_failure:
                 raise ConnectionError("endpoint unsupported")
@@ -148,6 +154,25 @@ class ClientTests(unittest.TestCase):
         self.assertNotEqual(first, second.blacklist_entry_signatures[MAC_B])
         self.assertEqual(second.blacklist_entry_fields[MAC_B],
                          ("applied", "client_type", "name"))
+        self.assertEqual(fake.operations, [])
+
+    def test_direct_blacklist_read_is_independent_from_client_blacklist(self):
+        fake = FakeDeco(blocked={MAC_A})
+        fake.direct_blocked = {MAC_B}
+        snapshot = self.controller(fake).poll()
+        self.assertEqual(snapshot.direct_blacklist.status, "ok")
+        self.assertEqual(snapshot.direct_blacklist_macs, frozenset({MAC_B}))
+        self.assertEqual(snapshot.blocked, frozenset({MAC_A}))
+        self.assertEqual(snapshot.direct_blacklist.count, 1)
+        self.assertEqual(fake.operations, [])
+
+    def test_direct_blacklist_failure_does_not_change_base_data(self):
+        fake = FakeDeco(blocked={MAC_B})
+        fake.direct_read_failure = True
+        snapshot = self.controller(fake).poll()
+        self.assertEqual(snapshot.direct_blacklist.status, "request_error")
+        self.assertIsNone(snapshot.direct_blacklist_macs)
+        self.assertEqual(snapshot.blocked, frozenset({MAC_B}))
         self.assertEqual(fake.operations, [])
 
     def test_mobile_app_blacklist_read_is_independent(self):
