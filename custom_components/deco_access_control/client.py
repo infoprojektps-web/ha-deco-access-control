@@ -1,5 +1,5 @@
 """Fail-closed Deco API wrapper. Never replace the whole blocked-MAC list."""
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from threading import RLock
 from typing import Callable
 import re
@@ -30,9 +30,43 @@ class ClientInfo:
     online: bool
 
 @dataclass(frozen=True)
+class WifiAccessProbe:
+    """Read-only inspection of the Wi-Fi Access Control configuration."""
+    status: str
+    mode: str | None = None
+    keys: tuple[str, ...] = ()
+    error_type: str | None = None
+
+
+@dataclass(frozen=True)
 class Snapshot:
     clients: dict[str, ClientInfo]
     blocked: frozenset[str]
+    wifi_access: WifiAccessProbe | None = None
+
+def read_wifi_access_probe(api) -> WifiAccessProbe:
+    """Query app-side Wi-Fi access control without modifying router settings.
+
+    Router firmware differs; errors and missing forms are reported but do not
+    prevent the base client/blocklist integration from working.
+    Never expose raw response values such as client MACs or tokens.
+    """
+    try:
+        result = api.request("admin/client", "apply_list", {"operation": "get"})
+    except Exception as exc:
+        return WifiAccessProbe(status="unavailable", error_type=type(exc).__name__)
+    if not isinstance(result, dict):
+        return WifiAccessProbe(status="unexpected_response")
+    mode = result.get("curr_mode")
+    if mode is None and isinstance(result.get("apply_list"), dict):
+        mode = result["apply_list"].get("curr_mode")
+    if mode is not None and not isinstance(mode, str):
+        mode = str(mode)
+    return WifiAccessProbe(
+        status="available",
+        mode=mode,
+        keys=tuple(sorted(str(key) for key in result)),
+    )
 
 def parse_snapshot(active: object, blocked: object) -> Snapshot:
     if not isinstance(active, (list, tuple)) or not isinstance(blocked, (list, tuple)):
@@ -68,7 +102,8 @@ class DecoController:
 
     @staticmethod
     def _snapshot(api) -> Snapshot:
-        return parse_snapshot(api.get_client_list(), api.clients.get_blocked())
+        base = parse_snapshot(api.get_client_list(), api.clients.get_blocked())
+        return replace(base, wifi_access=read_wifi_access_probe(api))
 
     def poll(self) -> Snapshot:
         with self._lock, self._factory(self._host, self._username, self._password) as api:
