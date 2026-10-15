@@ -1,7 +1,7 @@
 {
   "domain": "deco_access_control",
   "name": "Deco Access Control",
-  "version": "0.1.0-beta.7",
+  "version": "0.1.0-beta.8",
   "documentation": "https://github.com/infoprojektps-web/ha-deco-access-control",
   "issue_tracker": "https://github.com/infoprojektps-web/ha-deco-access-control/issues",
   "codeowners": [],
