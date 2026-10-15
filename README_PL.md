@@ -65,3 +65,34 @@ Nowy, wyłącznie odczytowy atrybut `firmware_client_blocked` w istniejących pr
 Odczyt flagi nie potwierdza sam w sobie, że klient stracił internet. Aby ustalić różnicę, porównaj atrybuty `blocked`, `firmware_client_blocked` i `online` **tego samego przełącznika** w dwóch stanach: gdy blokada dodana przez HA jest nieskuteczna, oraz gdy ręczna blokada w aplikacji Deco skutecznie odcina internet. Nie udostępniaj MAC ani IP urządzenia testowego.
 
 Beta.4 nie wprowadza nowych operacji zapisu, nie rozłącza klientów ani nie zmienia ustawień samego Deco.
+
+
+## Porównanie blokady HA i aplikacji Deco (beta.5)
+
+Dla **Deco M4R 1.8.2 Build 20251027 Rel. 36869** (AP; X50 nadal niepodłączone)
+dodano dwa odczytowe atrybuty do przełączników urządzeń:
+
+- `blacklist_record_fields` — same nazwy pól (bez ich wartości) surowego
+  wpisu `admin/client → black_list/list`;
+- `blacklist_record_signature` — krótki skrót SHA-256 rekordu z pominięciem MAC.
+  Skrót porównuje strukturę i wartości wpisu, ale nie pokazuje samej nazwy klienta,
+  jego MAC, IP ani surowych danych.
+
+Atrybut `enforcement_verified: false` przypomina, że `blocked: true`
+potwierdza tylko obecność na liście, a **nie odcięcie internetu**.
+
+Aby porównać blokady, aktualizuj przez HACS i uruchom HA ponownie.
+Dla jednego testowego urządzenia odczytaj poniższe atrybuty przy blokadzie
+zapisanej przez HA i skutecznej blokadzie wykonanej przez aplikację Deco:
+`blocked`, `firmware_client_blocked`, `blacklist_record_fields`,
+`blacklist_record_signature`. Odczekaj około minutę na odświeżenie encji.
+
+Interpretacja:
+- Różne skróty/pola: aplikacja zapisuje inny rekord na liście; dalej analizować format.
+- Identyczne skróty/pola: prawdopodobnie dochodzi dodatkowe żądanie albo
+  różni się obsługa sesji, aplikacji lub firmware; sam wpis tego nie pokaże.
+- Brak skrótu mimo wpisu: sprawdź stan bazowego odczytu, nie wnioskuj o skutecznej blokadzie.
+
+**Nie podmieniamy automatycznie komend na `client_access/write` czy
+`block/write`, ponieważ dostępne materiały nie podają zweryfikowanych
+parametrów dla tej wersji M4R.** Nie dodano żadnych nowych operacji zapisu.
