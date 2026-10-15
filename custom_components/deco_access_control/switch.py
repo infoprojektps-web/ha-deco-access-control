@@ -1,4 +1,4 @@
-"""Per-client switch. ON=Wi-Fi allowed; OFF=blocked."""
+"""Per-client switch. ON=not on blacklist; OFF=listed (enforcement not proven)."""
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from .const import DOMAIN
@@ -35,7 +35,7 @@ class DecoClientAccessSwitch(CoordinatorEntity[DecoAccessCoordinator], SwitchEnt
     @property
     def name(self):
         info = self.coordinator.data.clients.get(self._mac) if self.coordinator.data else None
-        return f"Dostęp Wi-Fi — {info.name if info else self._mac}"
+        return f"Lista blokad Deco — {info.name if info else self._mac}"
 
     @property
     def is_on(self):
