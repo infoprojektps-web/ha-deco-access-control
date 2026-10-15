@@ -156,3 +156,49 @@ komunikatu. Dla `Deco — black_list aplikacji mobilnej` interpretuj:
 
 To nadal tylko diagnostyka i **nie naprawia wykonywania blokady**.
 Nie wysyłaj dzienników zawierających `stok`, ciasteczka ani hasła.
+
+
+## Wersja 0.1.0-beta.8 — niezależna lista blokad `/admin/black_list`
+
+Repozytorium [eduardo-moreira/ha-deco-manager](https://github.com/eduardo-moreira/ha-deco-manager)
+deklaruje testy na M4R v2 z firmware 1.8.2 Build 20251027. Autor
+używa `/admin/black_list?form=black_list` z operacjami
+`read` i `write` (`black_list` jako lista MAC).
+
+Jest to **inna ścieżka** niż dotychczasowe `/admin/client?form=black_list`.
+Beta.8 tylko ją **odczytuje** (`operation: read`) i dodaje:
+- sensor `Deco — black_list osobna ścieżka` z atrybutami
+  `endpoint_status`, `http_status_code`, `error_code`, `entry_count`;
+- atrybut `direct_black_list` na przełączniku urządzenia:
+  `True`, `False` lub `None` (brak możliwości ustalenia).
+
+Ani blokowanie, ani odblokowywanie nie korzysta jeszcze z tej ścieżki.
+**Nie kopiujemy procedury zapisu całej listy** z obcego repozytorium,
+ponieważ grozi ona usunięciem blokad innych urządzeń i wymagałaby
+atomowej weryfikacji/bezpiecznej obsługi współbieżnych zmian.
+
+Po instalacji beta.8 przez HACS i ponownym uruchomieniu HA, uruchom w
+Narzędziach deweloperskich → Szablony:
+
+```jinja2
+{% for s in states.sensor
+   if 'black_list osobna ścieżka' in s.name | lower %}
+=== NOWY ENDPOINT /admin/black_list ===
+Stan: {{ s.state }}
+Status: {{ s.attributes.get('endpoint_status') }}
+HTTP: {{ s.attributes.get('http_status_code') }}
+API: {{ s.attributes.get('error_code') }}
+Liczba wpisów: {{ s.attributes.get('entry_count') }}
+{% endfor %}
+
+{% for s in states.switch
+   if 'mi-tv-stick' in s.name | lower %}
+=== MI-TV-STICK ===
+Lista dotychczasowa: {{ s.attributes.get('blocked') }}
+Lista nowa: {{ s.attributes.get('direct_black_list') }}
+{% endfor %}
+```
+
+Interpretuj status i listę ostrożnie: obsługa `read` nie dowodzi, że
+`write` będzie działać na tym samym firmware, a wpis na liście nie
+stanowi dowodu skutecznego odcięcia internetu.
