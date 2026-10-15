@@ -20,6 +20,8 @@ class FakeDeco:
         self.malformed_blocklist = False
         self.wifi_mode = "block"
         self.raw_record_extra = {}
+        self.mobile_blocked = set()
+        self.mobile_read_failure = False
         self.raw_firmware_flags = {MAC_A: True, MAC_B: False}
         self.fail_firmware_read = False
         self.ignore_write = False
@@ -30,6 +32,13 @@ class FakeDeco:
     def __exit__(self, *args):
         return False
     def request(self, path, form, data):
+        if path == "admin/mobile_app/client" and form == "black_list":
+            if self.mobile_read_failure:
+                raise ConnectionError("endpoint unsupported")
+            return {"client_list": [
+                {"mac": mac, "name": "", "client_type": "phone"}
+                for mac in sorted(self.mobile_blocked)
+            ]}
         if path != "admin/client":
             raise ValueError("unexpected path")
         if form == "black_list":
@@ -139,6 +148,25 @@ class ClientTests(unittest.TestCase):
         self.assertNotEqual(first, second.blacklist_entry_signatures[MAC_B])
         self.assertEqual(second.blacklist_entry_fields[MAC_B],
                          ("applied", "client_type", "name"))
+        self.assertEqual(fake.operations, [])
+
+    def test_mobile_app_blacklist_read_is_independent(self):
+        fake = FakeDeco(blocked={MAC_A})
+        fake.mobile_blocked = {MAC_B}
+        result = self.controller(fake).poll()
+        self.assertEqual(result.blocked, frozenset({MAC_A}))
+        self.assertEqual(result.mobile_blacklist_macs, frozenset({MAC_B}))
+        self.assertEqual(result.mobile_blacklist.status, "ok")
+        self.assertEqual(result.mobile_blacklist.count, 1)
+        self.assertEqual(fake.operations, [])
+
+    def test_mobile_app_blacklist_failure_does_not_disable_base_poll(self):
+        fake = FakeDeco(blocked={MAC_A})
+        fake.mobile_read_failure = True
+        result = self.controller(fake).poll()
+        self.assertEqual(result.mobile_blacklist.status, "request_error")
+        self.assertIsNone(result.mobile_blacklist_macs)
+        self.assertEqual(result.blocked, frozenset({MAC_A}))
         self.assertEqual(fake.operations, [])
 
     def test_blocklist_missing_field_aborts_without_writes(self):
