@@ -19,6 +19,8 @@ class FakeDeco:
         self.fail_read = False
         self.malformed_blocklist = False
         self.wifi_mode = "block"
+        self.raw_firmware_flags = {MAC_A: True, MAC_B: False}
+        self.fail_firmware_read = False
         self.ignore_write = False
         self.operations = []
         self.clients = self
@@ -35,6 +37,13 @@ class FakeDeco:
             if self.malformed_blocklist:
                 return {"invalid": []}
             return {"client_list": [{"mac": mac, "name": "", "client_type": "phone"} for mac in self._blocked]}
+        if form == "client_list":
+            if self.fail_firmware_read:
+                raise ConnectionError("no response")
+            return {"client_list": [
+                {"mac": mac.replace(":", "-"), "blocked": value}
+                for mac, value in self.raw_firmware_flags.items()
+            ]}
         if form == "apply_list":
             return {"curr_mode": self.wifi_mode, "clients": []}
         raise ValueError("unexpected form")
@@ -96,6 +105,21 @@ class ClientTests(unittest.TestCase):
         self.assertEqual(probe.status, "api_error")
         self.assertEqual(probe.error_code, 1234)
         self.assertNotIn("secret", str(probe))
+
+    def test_firmware_blocked_flag_is_independent_from_blacklist(self):
+        fake = FakeDeco(blocked={MAC_B})
+        flags = self.controller(fake).poll().firmware_client_blocked
+        self.assertEqual(flags[MAC_A], "true")
+        self.assertEqual(flags[MAC_B], "false")
+        self.assertEqual(fake.operations, [])
+
+    def test_firmware_flag_read_error_does_not_disable_base_poll(self):
+        fake = FakeDeco(blocked={MAC_B})
+        fake.fail_firmware_read = True
+        result = self.controller(fake).poll()
+        self.assertIsNone(result.firmware_client_blocked)
+        self.assertEqual(result.blocked, frozenset({MAC_B}))
+        self.assertEqual(fake.operations, [])
 
     def test_blocklist_missing_field_aborts_without_writes(self):
         fake = FakeDeco()
