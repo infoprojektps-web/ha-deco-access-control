@@ -17,6 +17,8 @@ class FakeDeco:
             SimpleNamespace(mac=MAC_B, name="Phone B", ip="192.168.0.31", client_type="phone", online=True, connection_type="band5"),
         ]
         self.fail_read = False
+        self.malformed_blocklist = False
+        self.wifi_mode = "block"
         self.ignore_write = False
         self.operations = []
         self.clients = self
@@ -24,6 +26,18 @@ class FakeDeco:
         return self
     def __exit__(self, *args):
         return False
+    def request(self, path, form, data):
+        if path != "admin/client":
+            raise ValueError("unexpected path")
+        if form == "black_list":
+            if self.fail_read:
+                raise ConnectionError("unavailable")
+            if self.malformed_blocklist:
+                return {"invalid": []}
+            return {"client_list": [{"mac": mac, "name": "", "client_type": "phone"} for mac in self._blocked]}
+        if form == "apply_list":
+            return {"curr_mode": self.wifi_mode, "clients": []}
+        raise ValueError("unexpected form")
     def get_client_list(self):
         return self._clients
     def get_blocked(self):
@@ -57,6 +71,20 @@ class ClientTests(unittest.TestCase):
             self.controller(fake).set_allowed(MAC_A, False)
         self.assertEqual(fake.operations, [])
         self.assertEqual(fake._blocked, {MAC_B})
+    def test_readonly_wifi_mode_probe(self):
+        fake = FakeDeco()
+        status = self.controller(fake).poll().wifi_access
+        self.assertEqual(status.status, "available")
+        self.assertEqual(status.mode, "block")
+        self.assertEqual(fake.operations, [])
+
+    def test_blocklist_missing_field_aborts_without_writes(self):
+        fake = FakeDeco()
+        fake.malformed_blocklist = True
+        with self.assertRaises(DecoAccessError):
+            self.controller(fake).set_allowed(MAC_A, False)
+        self.assertEqual(fake.operations, [])
+
     def test_targeted_block_preserves_other_entries(self):
         fake = FakeDeco(blocked={MAC_B})
         result = self.controller(fake).set_allowed(MAC_A, False)
