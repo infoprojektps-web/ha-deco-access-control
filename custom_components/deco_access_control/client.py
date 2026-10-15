@@ -102,6 +102,16 @@ class DecoController:
 
     @staticmethod
     def _snapshot(api) -> Snapshot:
+        # The upstream SDK treats missing/malformed blocked-client lists
+        # as empty. Validate the raw response BEFORE trusting that fallback.
+        raw_result = api.request("admin/client", "black_list", {"operation": "list"})
+        if not isinstance(raw_result, dict) or "client_list" not in raw_result:
+            raise DecoAccessError("Incomplete Deco blocklist response; no change allowed")
+        raw_entries = raw_result["client_list"]
+        if not (isinstance(raw_entries, list) or raw_entries == {}):
+            raise DecoAccessError("Malformed Deco blocklist response; no change allowed")
+        if isinstance(raw_entries, list) and not all(isinstance(x, dict) for x in raw_entries):
+            raise DecoAccessError("Malformed Deco blocklist entry; no change allowed")
         base = parse_snapshot(api.get_client_list(), api.clients.get_blocked())
         return replace(base, wifi_access=read_wifi_access_probe(api))
 
