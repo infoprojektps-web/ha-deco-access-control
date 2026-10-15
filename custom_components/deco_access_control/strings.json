@@ -1,0 +1,20 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Deco Access Control",
+        "description": "Connect to main Deco; use the password used for local web login.",
+        "data": {
+          "host": "Main Deco IP",
+          "username": "Username (usually admin)",
+          "password": "Owner password",
+          "scan_interval": "Refresh interval (seconds)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Could not read clients and block list. Check credentials, firmware or logs.",
+      "invalid_host": "Invalid Deco host"
+    }
+  }
+}
