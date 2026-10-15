@@ -50,6 +50,7 @@ class DecoWifiAccessDiagnostic(CoordinatorEntity[DecoAccessCoordinator], SensorE
             "response_fields": ", ".join(probe.keys),
             "error_type": probe.error_type,
             "error_code": probe.error_code,
+            "http_status_code": probe.http_status_code,
             "configuration_signature": probe.signature,
             "note": "Odczyt tylko diagnostyczny. Wpis na black_list nie potwierdza odciecia internetu.",
         }
@@ -110,6 +111,7 @@ class DecoReadOnlyProbe(CoordinatorEntity[DecoAccessCoordinator], SensorEntity):
             "endpoint_status": probe.status,
             "error_type": probe.error_type,
             "error_code": probe.error_code,
+            "http_status_code": probe.http_status_code,
             "response_fields": ", ".join(probe.keys),
             "entry_count": probe.count,
             "configuration_signature": probe.signature,
