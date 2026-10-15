@@ -50,6 +50,7 @@ class Snapshot:
     wifi_access: WifiAccessProbe | None = None
     nrd_blacklist: WifiAccessProbe | None = None
     wifi_refused: WifiAccessProbe | None = None
+    firmware_client_blocked: dict[str, str] | None = None
 
 def _api_error_code(exc: Exception) -> int | None:
     """Expose only numeric Deco error_code, never raw exception text."""
@@ -113,6 +114,39 @@ def read_wifi_refused_probe(api) -> WifiAccessProbe:
     base, _result = _read_only_probe(api, "admin/client", "access_refuse", "get")
     return base
 
+def read_firmware_client_blocked(api) -> dict[str, str] | None:
+    """Inspect firmware-provided `client_list[].blocked` without changing it.
+
+    It is independent of the black_list membership. Unknown/missing values are
+    kept distinguishable from explicit false; failures never interrupt polling.
+    """
+    try:
+        result = api.request(
+            "admin/client", "client_list",
+            {"operation": "read", "params": {"device_mac": "default"}},
+        )
+    except Exception:
+        return None
+    if not isinstance(result, dict) or not isinstance(result.get("client_list"), list):
+        return None
+    flags: dict[str, str] = {}
+    for item in result["client_list"]:
+        if not isinstance(item, dict):
+            continue
+        try:
+            mac = normalize_mac(item.get("mac"))
+        except DecoAccessError:
+            continue
+        value = item.get("blocked")
+        if value is True or (type(value) is int and value == 1) or value == "1":
+            flags[mac] = "true"
+        elif value is False or (type(value) is int and value == 0) or value == "0":
+            flags[mac] = "false"
+        else:
+            flags[mac] = "unknown"
+    return flags
+
+
 def parse_snapshot(active: object, blocked: object) -> Snapshot:
     if not isinstance(active, (list, tuple)) or not isinstance(blocked, (list, tuple)):
         raise DecoAccessError("Invalid client/blocklist response")
@@ -164,6 +198,7 @@ class DecoController:
                 wifi_access=read_wifi_access_probe(api),
                 nrd_blacklist=read_nrd_blacklist_probe(api),
                 wifi_refused=read_wifi_refused_probe(api),
+                firmware_client_blocked=read_firmware_client_blocked(api),
             )
         return base
 
