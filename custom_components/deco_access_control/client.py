@@ -38,7 +38,9 @@ class WifiAccessProbe:
     mode: str | None = None
     keys: tuple[str, ...] = ()
     error_type: str | None = None
+    error_code: int | None = None
     signature: str | None = None
+    count: int | None = None
 
 
 @dataclass(frozen=True)
@@ -46,35 +48,70 @@ class Snapshot:
     clients: dict[str, ClientInfo]
     blocked: frozenset[str]
     wifi_access: WifiAccessProbe | None = None
+    nrd_blacklist: WifiAccessProbe | None = None
+    wifi_refused: WifiAccessProbe | None = None
 
-def read_wifi_access_probe(api) -> WifiAccessProbe:
-    """Query app-side Wi-Fi access control without modifying router settings.
+def _api_error_code(exc: Exception) -> int | None:
+    """Expose only numeric Deco error_code, never raw exception text."""
+    value = getattr(exc, "error_code", None)
+    return value if type(value) is int else None
 
-    Router firmware differs; errors and missing forms are reported but do not
-    prevent the base client/blocklist integration from working.
-    Never expose raw response values such as client MACs or tokens.
+
+def _read_only_probe(api, path: str, form: str, operation: str) -> tuple[WifiAccessProbe, dict | None]:
+    """Safely inspect a supported read-only endpoint.
+
+    No raw response data, MAC addresses, tokens, credentials, or router URLs
+    are surfaced via entity attributes or error messages.
     """
     try:
-        result = api.request("admin/client", "apply_list", {"operation": "get"})
+        result = api.request(path, form, {"operation": operation})
     except Exception as exc:
-        return WifiAccessProbe(status="unavailable", error_type=type(exc).__name__)
+        code = _api_error_code(exc)
+        return (WifiAccessProbe(
+            status="api_error" if code is not None else "request_error",
+            error_type=type(exc).__name__,
+            error_code=code,
+        ), None)
     if not isinstance(result, dict):
-        return WifiAccessProbe(status="unexpected_response")
-    mode = result.get("curr_mode")
-    if mode is None and isinstance(result.get("apply_list"), dict):
-        mode = result["apply_list"].get("curr_mode")
-    if mode is not None and not isinstance(mode, str):
-        mode = str(mode)
-    # Only show a checksum, never the raw client/MAC list or account data.
-    fingerprint = hashlib.sha256(
+        return WifiAccessProbe(status="unexpected_response"), None
+    signature = hashlib.sha256(
         json.dumps(result, sort_keys=True, separators=(",", ":"), default=str).encode("utf-8")
     ).hexdigest()[:16]
     return WifiAccessProbe(
-        status="available",
-        mode=mode,
+        status="ok",
         keys=tuple(sorted(str(key) for key in result)),
-        signature=fingerprint,
-    )
+        signature=signature,
+    ), result
+
+
+def read_wifi_access_probe(api) -> WifiAccessProbe:
+    """Inspect app-only Wi-Fi access control; may be rejected by firmware."""
+    base, result = _read_only_probe(api, "admin/client", "apply_list", "get")
+    if result is None:
+        return base
+    mode = result.get("curr_mode")
+    if mode is None and isinstance(result.get("apply_list"), dict):
+        mode = result["apply_list"].get("curr_mode")
+    return replace(base, mode=str(mode) if mode is not None else None)
+
+
+def read_nrd_blacklist_probe(api) -> WifiAccessProbe:
+    """Inspect the separate NRD blacklist; never make writes here."""
+    base, result = _read_only_probe(api, "admin/nrd", "black_list", "list")
+    if result is None:
+        return base
+    items = result.get("client_list")
+    if isinstance(items, list):
+        return replace(base, count=len(items))
+    if items == {}:
+        return replace(base, count=0)
+    return replace(base, status="unexpected_response")
+
+
+def read_wifi_refused_probe(api) -> WifiAccessProbe:
+    """Inspect app-side Wi-Fi refused clients without exposing client records."""
+    base, _result = _read_only_probe(api, "admin/client", "access_refuse", "get")
+    return base
 
 def parse_snapshot(active: object, blocked: object) -> Snapshot:
     if not isinstance(active, (list, tuple)) or not isinstance(blocked, (list, tuple)):
@@ -109,7 +146,7 @@ class DecoController:
         self._lock = RLock()
 
     @staticmethod
-    def _snapshot(api) -> Snapshot:
+    def _snapshot(api, with_diagnostics: bool = False) -> Snapshot:
         # The upstream SDK treats missing/malformed blocked-client lists
         # as empty. Validate the raw response BEFORE trusting that fallback.
         raw_result = api.request("admin/client", "black_list", {"operation": "list"})
@@ -121,11 +158,18 @@ class DecoController:
         if isinstance(raw_entries, list) and not all(isinstance(x, dict) for x in raw_entries):
             raise DecoAccessError("Malformed Deco blocklist entry; no change allowed")
         base = parse_snapshot(api.get_client_list(), api.clients.get_blocked())
-        return replace(base, wifi_access=read_wifi_access_probe(api))
+        if with_diagnostics:
+            return replace(
+                base,
+                wifi_access=read_wifi_access_probe(api),
+                nrd_blacklist=read_nrd_blacklist_probe(api),
+                wifi_refused=read_wifi_refused_probe(api),
+            )
+        return base
 
     def poll(self) -> Snapshot:
         with self._lock, self._factory(self._host, self._username, self._password) as api:
-            return self._snapshot(api)
+            return self._snapshot(api, with_diagnostics=True)
 
     def set_allowed(self, mac: str, allowed: bool) -> Snapshot:
         target = normalize_mac(mac)
