@@ -96,3 +96,47 @@ Interpretacja:
 **Nie podmieniamy automatycznie komend na `client_access/write` czy
 `block/write`, ponieważ dostępne materiały nie podają zweryfikowanych
 parametrów dla tej wersji M4R.** Nie dodano żadnych nowych operacji zapisu.
+
+
+## Wersja 0.1.0-beta.6 — znaleziony osobny interfejs API aplikacji
+
+Oprócz `admin/client` inne repozytorium przeznaczone dla Deco M4
+([oliver006/deco](https://github.com/oliver006/deco/blob/main/admin_mobile_app.go))
+dokumentuje drugi kontroler `admin/mobile_app/client` z operacjami
+`black_list/list`, `black_list/block` i `black_list/unblock`.
+Na M4R 1.8.2 zgodność tego drugiego interfejsu **nie jest jeszcze potwierdzona**.
+
+Beta.6 dodaje **TYLKO ODCZYT** drugiej listy:
+- nowa encja `Deco — black_list aplikacji mobilnej`; odczytaj jej stan,
+  `endpoint_status`, `error_type`, `error_code`, `entry_count`;
+- nowe pole `mobile_black_list` na istniejących przełącznikach klientów:
+  `True` jeśli MAC występuje w liście mobilnej, `False` jeśli nie,
+  `None` jeśli odczyt się nie powiódł lub odpowiedź była nieznana.
+
+Wprowadzenie zmian nie modyfikuje metody blokowania: podstawowy przełącznik
+nadal wywołuje `admin/client → black_list/block`. Nie traktuj stanu
+`blocked: true` jako dowodu skutecznego odcięcia internetu.
+
+Zaktualizuj integrację przez HACS, uruchom ponownie Home Assistant i
+wykonaj następujący *bezpieczny* szablon:
+
+```jinja2
+{% for s in states.switch if 'mi-tv-stick' in s.name | lower %}
+URZĄDZENIE: {{ s.name }}
+Black_list: {{ s.attributes.get('blocked') }}
+Mobile black_list: {{ s.attributes.get('mobile_black_list') }}
+Internet: sprawdź ręcznie
+{% endfor %}
+
+{% for s in states.sensor if 'deco' in s.entity_id and 'black_list_aplikacji' in s.entity_id %}
+MOBILNE API: {{ s.state }}
+Status: {{ s.attributes.get('endpoint_status') }}
+Kod błędu: {{ s.attributes.get('error_code') }}
+Typ błędu: {{ s.attributes.get('error_type') }}
+Liczba wpisów: {{ s.attributes.get('entry_count') }}
+{% endfor %}
+```
+
+Porównaj najpierw stan **bez wykonywania nowej blokady**.
+Jeżeli mobilny endpoint nie odpowiada, nie eksperymentuj z żądaniami
+`block` / `unblock` ani z formatami danych.
