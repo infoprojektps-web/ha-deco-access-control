@@ -33,3 +33,18 @@ Jeśli przełącznik wyłączy urządzenie, ale internet nadal działa, NIE ozna
 5. Podaj wyniki oraz dokładną nazwę ekranu Deco, na którym ręcznie blokujesz urządzenie.
 
 **Ważne:** Suma wpisów na `black_list` nie jest pomiarem faktycznej dostępności internetu. Ten diagnostyczny odczyt nie modyfikuje konfiguracji sieci. Nie jest to jeszcze naprawa samej blokady.
+
+
+## Wersja 0.1.0-beta.3 — bezpieczna diagnostyka
+
+Aktualizuj przez HACS i uruchom HA ponownie. Nie usuwaj wpisu integracji ani haseł. Dodano odczytowe sensory:
+
+- `Deco — diagnostyka kontroli Wi-Fi` — status i numeryczny `error_code` dla `admin/client apply_list/get`.
+- `Deco — diagnostyka NRD black_list` — liczba wpisów z osobnego `admin/nrd black_list/list`, jeśli dostępna.
+- `Deco — diagnostyka Wi-Fi access_refuse` — status odczytu app-only listy odmów.
+
+Nie wyświetlamy haseł, sesji ani danych urządzeń, tylko kod błędu, nazwę wyjątku, nazwy pól oraz ograniczony skrót odpowiedzi. Stan błędu `api_error` nie jest już mylony z reserved HA `unavailable`.
+
+**Nie zmieniono funkcji blokowania!** Kontrola zapisu listy MAC nie oznacza skutecznej blokady Wi-Fi. Nie jest bezpieczne wywoływanie nieznanych zapisów `apply_list/set` na mieszanej sieci M4/X50 AP bez sprawdzenia szczegółów.
+
+Do dalszej analizy wyślij jedynie stan i atrybuty trzech sensorów, bez prywatnych MAC. Jeśli `error_code` jest niezerowe, można sprawdzić odpowiedź API, ale nie należy zgadywać parametrów zapisu.
