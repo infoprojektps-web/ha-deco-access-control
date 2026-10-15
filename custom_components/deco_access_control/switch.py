@@ -65,6 +65,11 @@ class DecoClientAccessSwitch(CoordinatorEntity[DecoAccessCoordinator], SwitchEnt
                 (self.coordinator.data.blacklist_entry_signatures or {}).get(self._mac)
                 if self.coordinator.data else None
             ),
+            "mobile_black_list": (
+                self._mac in self.coordinator.data.mobile_blacklist_macs
+                if self.coordinator.data and self.coordinator.data.mobile_blacklist_macs is not None
+                else None
+            ),
             "enforcement_verified": False,
             "firmware_client_blocked": (
                 (self.coordinator.data.firmware_client_blocked or {}).get(self._mac, "not_listed")
