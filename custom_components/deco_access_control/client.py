@@ -53,6 +53,8 @@ class Snapshot:
     firmware_client_blocked: dict[str, str] | None = None
     blacklist_entry_signatures: dict[str, str] | None = None
     blacklist_entry_fields: dict[str, tuple[str, ...]] | None = None
+    mobile_blacklist: WifiAccessProbe | None = None
+    mobile_blacklist_macs: frozenset[str] | None = None
 
 def _api_error_code(exc: Exception) -> int | None:
     """Expose only numeric Deco error_code, never raw exception text."""
@@ -96,6 +98,31 @@ def read_wifi_access_probe(api) -> WifiAccessProbe:
     if mode is None and isinstance(result.get("apply_list"), dict):
         mode = result["apply_list"].get("curr_mode")
     return replace(base, mode=str(mode) if mode is not None else None)
+
+
+def read_mobile_blacklist(api) -> tuple[WifiAccessProbe, frozenset[str] | None]:
+    """Read-only check of the distinct mobile-app blacklist controller.
+
+    This path is listed in an independent Deco M4 API wrapper; it is not
+    assumed to exist on every firmware. No writes are attempted.
+    """
+    base, result = _read_only_probe(api, "admin/mobile_app/client", "black_list", "list")
+    if result is None:
+        return base, None
+    items = result.get("client_list")
+    if items == {}:
+        return replace(base, count=0), frozenset()
+    if not isinstance(items, list):
+        return replace(base, status="unexpected_response"), None
+    macs: set[str] = set()
+    for entry in items:
+        if not isinstance(entry, dict):
+            return replace(base, status="unexpected_response"), None
+        try:
+            macs.add(normalize_mac(entry.get("mac")))
+        except DecoAccessError:
+            return replace(base, status="unexpected_response"), None
+    return replace(base, count=len(macs)), frozenset(macs)
 
 
 def read_nrd_blacklist_probe(api) -> WifiAccessProbe:
@@ -220,8 +247,11 @@ class DecoController:
             blacklist_entry_fields=fields,
         )
         if with_diagnostics:
+            mobile_probe, mobile_macs = read_mobile_blacklist(api)
             return replace(
                 base,
+                mobile_blacklist=mobile_probe,
+                mobile_blacklist_macs=mobile_macs,
                 wifi_access=read_wifi_access_probe(api),
                 nrd_blacklist=read_nrd_blacklist_probe(api),
                 wifi_refused=read_wifi_refused_probe(api),
