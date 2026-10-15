@@ -19,6 +19,7 @@ class FakeDeco:
         self.fail_read = False
         self.malformed_blocklist = False
         self.wifi_mode = "block"
+        self.raw_record_extra = {}
         self.raw_firmware_flags = {MAC_A: True, MAC_B: False}
         self.fail_firmware_read = False
         self.ignore_write = False
@@ -36,7 +37,7 @@ class FakeDeco:
                 raise ConnectionError("unavailable")
             if self.malformed_blocklist:
                 return {"invalid": []}
-            return {"client_list": [{"mac": mac, "name": "", "client_type": "phone"} for mac in self._blocked]}
+            return {"client_list": [{"mac": mac, "name": "", "client_type": "phone", **self.raw_record_extra} for mac in self._blocked]}
         if form == "client_list":
             if self.fail_firmware_read:
                 raise ConnectionError("no response")
@@ -119,6 +120,25 @@ class ClientTests(unittest.TestCase):
         result = self.controller(fake).poll()
         self.assertIsNone(result.firmware_client_blocked)
         self.assertEqual(result.blocked, frozenset({MAC_B}))
+        self.assertEqual(fake.operations, [])
+
+    def test_fingerprints_do_not_expose_identity(self):
+        fake = FakeDeco(blocked={MAC_B})
+        snapshot = self.controller(fake).poll()
+        signature = snapshot.blacklist_entry_signatures[MAC_B]
+        self.assertEqual(len(signature), 16)
+        self.assertNotIn(MAC_B, signature)
+        self.assertEqual(snapshot.blacklist_entry_fields[MAC_B], ("client_type", "name"))
+        self.assertEqual(fake.operations, [])
+
+    def test_blocklist_entry_record_difference_detected(self):
+        fake = FakeDeco(blocked={MAC_B})
+        first = self.controller(fake).poll().blacklist_entry_signatures[MAC_B]
+        fake.raw_record_extra = {"applied": True}
+        second = self.controller(fake).poll()
+        self.assertNotEqual(first, second.blacklist_entry_signatures[MAC_B])
+        self.assertEqual(second.blacklist_entry_fields[MAC_B],
+                         ("applied", "client_type", "name"))
         self.assertEqual(fake.operations, [])
 
     def test_blocklist_missing_field_aborts_without_writes(self):
