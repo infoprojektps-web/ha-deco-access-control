@@ -1,0 +1,20 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Deco — kontrola dostępu Wi-Fi",
+        "description": "Połącz z głównym Deco. Użyj hasła z panelu WWW.",
+        "data": {
+          "host": "Adres IP głównego Deco",
+          "username": "Login (zwykle admin)",
+          "password": "Hasło właściciela",
+          "scan_interval": "Odświeżanie (sekundy)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Nie udało się odczytać listy klientów i blokad. Sprawdź dane, firmware i dzienniki.",
+      "invalid_host": "Niepoprawny adres Deco"
+    }
+  }
+}
