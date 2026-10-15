@@ -3,6 +3,8 @@ from dataclasses import dataclass, replace
 from threading import RLock
 from typing import Callable
 import re
+import hashlib
+import json
 
 MAC_PATTERN = re.compile(r"^[0-9A-F]{2}(:[0-9A-F]{2}){5}$")
 
@@ -36,6 +38,7 @@ class WifiAccessProbe:
     mode: str | None = None
     keys: tuple[str, ...] = ()
     error_type: str | None = None
+    signature: str | None = None
 
 
 @dataclass(frozen=True)
@@ -62,10 +65,15 @@ def read_wifi_access_probe(api) -> WifiAccessProbe:
         mode = result["apply_list"].get("curr_mode")
     if mode is not None and not isinstance(mode, str):
         mode = str(mode)
+    # Only show a checksum, never the raw client/MAC list or account data.
+    fingerprint = hashlib.sha256(
+        json.dumps(result, sort_keys=True, separators=(",", ":"), default=str).encode("utf-8")
+    ).hexdigest()[:16]
     return WifiAccessProbe(
         status="available",
         mode=mode,
         keys=tuple(sorted(str(key) for key in result)),
+        signature=fingerprint,
     )
 
 def parse_snapshot(active: object, blocked: object) -> Snapshot:
