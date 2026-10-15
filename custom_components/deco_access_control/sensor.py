@@ -46,6 +46,7 @@ class DecoWifiAccessDiagnostic(CoordinatorEntity[DecoAccessCoordinator], SensorE
             "active_mode": probe.mode,
             "response_fields": ", ".join(probe.keys),
             "error_type": probe.error_type,
+            "configuration_signature": probe.signature,
             "note": "Odczyt tylko diagnostyczny. Wpis na black_list nie potwierdza odciecia internetu.",
         }
 
