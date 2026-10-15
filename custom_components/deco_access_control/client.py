@@ -39,6 +39,7 @@ class WifiAccessProbe:
     keys: tuple[str, ...] = ()
     error_type: str | None = None
     error_code: int | None = None
+    http_status_code: int | None = None
     signature: str | None = None
     count: int | None = None
 
@@ -72,10 +73,14 @@ def _read_only_probe(api, path: str, form: str, operation: str) -> tuple[WifiAcc
         result = api.request(path, form, {"operation": operation})
     except Exception as exc:
         code = _api_error_code(exc)
+        http_status = getattr(exc, "status_code", None)
+        if type(http_status) is not int:
+            http_status = None
         return (WifiAccessProbe(
             status="api_error" if code is not None else "request_error",
             error_type=type(exc).__name__,
             error_code=code,
+            http_status_code=http_status,
         ), None)
     if not isinstance(result, dict):
         return WifiAccessProbe(status="unexpected_response"), None
