@@ -11,6 +11,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
     async_add_entities([
         DecoWifiAccessDiagnostic(coordinator, entry.entry_id),
         DecoBlacklistCount(coordinator, entry.entry_id),
+        DecoReadOnlyProbe(coordinator, entry.entry_id, "mobile_blacklist", "Deco — black_list aplikacji mobilnej"),
         DecoReadOnlyProbe(coordinator, entry.entry_id, "nrd_blacklist", "Deco — diagnostyka NRD black_list"),
         DecoReadOnlyProbe(coordinator, entry.entry_id, "wifi_refused", "Deco — diagnostyka Wi-Fi access_refuse"),
     ])
