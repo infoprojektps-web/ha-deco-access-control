@@ -140,3 +140,19 @@ Liczba wpisów: {{ s.attributes.get('entry_count') }}
 Porównaj najpierw stan **bez wykonywania nowej blokady**.
 Jeżeli mobilny endpoint nie odpowiada, nie eksperymentuj z żądaniami
 `block` / `unblock` ani z formatami danych.
+
+
+## Wersja 0.1.0-beta.7 — kod błędu HTTP bez ujawniania tokenu
+
+Znaleziono źródło `TransportError` w `tplink-deco-api==2.0.0`:
+biblioteka udostępnia numer HTTP przez `exception.status_code`, ale
+komunikat wyjątku może zawierać pełny adres z tokenem sesji.
+Dlatego beta.7 pokazuje tylko atrybut `http_status_code`, bez surowego
+komunikatu. Dla `Deco — black_list aplikacji mobilnej` interpretuj:
+- `404` — nie znaleziono ścieżki, nie próbuj wysyłać poleceń zapisu na nią;
+- `401` / `403` — serwer odmawia dostępu, sprawdź autoryzację;
+- `None` — np. timeout lub problem transportowy bez odpowiedzi HTTP;
+- inne — sprawdź numer, bez założenia że operacja jest wspierana.
+
+To nadal tylko diagnostyka i **nie naprawia wykonywania blokady**.
+Nie wysyłaj dzienników zawierających `stok`, ciasteczka ani hasła.
