@@ -57,6 +57,15 @@ class DecoClientAccessSwitch(CoordinatorEntity[DecoAccessCoordinator], SwitchEnt
             "online": info.online if info else None,
             "connection_type": info.connection_type if info else None,
             "blocked": self._mac in self.coordinator.data.blocked if self.coordinator.data else None,
+            "blacklist_record_fields": (
+                ", ".join((self.coordinator.data.blacklist_entry_fields or {}).get(self._mac, ()))
+                if self.coordinator.data else ""
+            ),
+            "blacklist_record_signature": (
+                (self.coordinator.data.blacklist_entry_signatures or {}).get(self._mac)
+                if self.coordinator.data else None
+            ),
+            "enforcement_verified": False,
             "firmware_client_blocked": (
                 (self.coordinator.data.firmware_client_blocked or {}).get(self._mac, "not_listed")
                 if self.coordinator.data and self.coordinator.data.firmware_client_blocked is not None
